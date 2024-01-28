@@ -1,5 +1,5 @@
 export const checkAuth = (users, chatid) => {
   if (users[chatid]?.access) {
-    return false;
-  } else return true;
+    return true;
+  } else return false;
 };

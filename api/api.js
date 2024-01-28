@@ -15,9 +15,40 @@ export const Login = async (email = "", password = "") => {
     return null;
   }
 };
+
 export const getOrders = async () => {
   const response = await $apiWithoutToken.get("/order/get-all");
   if (response.status == 200) {
     return response.data?.items;
   } else return null;
+};
+
+export const getFreelancers = async () => {
+  const response = await $apiWithoutToken.get("/user/freelancers");
+  if (response.status == 200) {
+    return response.data?.items;
+  } else return null;
+};
+
+export const changePassword = async (
+  oldPassword,
+  newPassword,
+  user,
+  chatid
+) => {
+  const response = await $apiWithoutToken.put(
+    "/user/change-password",
+    {
+      oldPassword,
+      newPassword,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${user[chatid]?.access}`,
+      },
+    }
+  );
+  if (response.status == 200) {
+    return true;
+  } else return false;
 };

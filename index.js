@@ -1,4 +1,4 @@
-import { Login, getOrders } from "./api/api.js";
+import { Login, changePassword, getFreelancers, getOrders } from "./api/api.js";
 import TelegramBot from "node-telegram-bot-api/src/telegram.js";
 import commandList from "./commandList.js";
 import options from "./options/optionsButton.js";
@@ -11,6 +11,8 @@ const bot = new TelegramBot(token, { polling: true });
 //database
 const firstEntryMap = new Map();
 const authUsers = {};
+
+let isProcessing = false;
 
 // bot.onText(/.*/, (msg) => {
 //   const chatId = msg.chat.id;
@@ -27,6 +29,7 @@ const authUsers = {};
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
+  if (isProcessing) return;
   bot.sendMessage(
     chatId,
     "Для авторизации, введите команду /authorization",
@@ -35,7 +38,8 @@ bot.onText(/\/start/, (msg) => {
 });
 bot.onText(/\/authorization/, (msg) => {
   const chatId = msg.chat.id;
-  if (!checkAuth(authUsers, chatId)) {
+  if (isProcessing) return;
+  if (checkAuth(authUsers, chatId)) {
     bot.sendMessage(chatId, "Вы уже авторизованы");
     return;
   }
@@ -43,6 +47,8 @@ bot.onText(/\/authorization/, (msg) => {
     bot.sendMessage(chatId, "Повторите попытку позже, вы заблокированы");
     return;
   }
+  isProcessing = true;
+  console.log(isProcessing);
   bot.sendMessage(chatId, "Введите ваш email:");
 
   bot.once("message", (msg) => {
@@ -60,6 +66,7 @@ bot.onText(/\/authorization/, (msg) => {
           access: res.accessToken,
           refresh: res.refreshToken,
         };
+        isProcessing = false;
         console.log(authUsers);
       } else {
         if (!authUsers[chatId]?.count) {
@@ -70,6 +77,7 @@ bot.onText(/\/authorization/, (msg) => {
             chatId,
             `Ошибка, введены неверные данные, у вас осталось ${authUsers[chatId].count}`
           );
+          isProcessing = false;
         } else {
           authUsers[chatId].count--;
           bot.sendMessage(
@@ -78,6 +86,7 @@ bot.onText(/\/authorization/, (msg) => {
           );
           if (authUsers[chatId].count == 0)
             bot.sendMessage(chatId, `авторизация временно заблокировано`);
+          isProcessing = false;
         }
       }
     });
@@ -85,12 +94,81 @@ bot.onText(/\/authorization/, (msg) => {
 });
 bot.onText(/\/logout/, (msg) => {
   const chatId = msg.chat.id;
+  if (isProcessing) return;
   if (authUsers[chatId]?.access) {
     delete authUsers[chatId];
     bot.sendMessage(chatId, `Вы вышли с аккаунта`);
   } else {
     bot.sendMessage(chatId, `Вы не были авторизованы`);
   }
+});
+bot.onText(/\/account/, (msg) => {
+  const chatId = msg.chat.id;
+  if (isProcessing) return;
+  if (!checkAuth(authUsers, chatId)) {
+    bot.sendMessage(
+      chatId,
+      "для начала авторизуйтесь, введите команду /authorization"
+    );
+    return;
+  }
+  const options = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "Изменить информацию о себе", callback_data: "edit_info" },
+          { text: "Изменить пароль", callback_data: "change_password" },
+          { text: "🔙 Назад", callback_data: "back" },
+        ],
+      ],
+    },
+  };
+  bot.sendMessage(chatId, "Выберите действие:", options);
+  bot.on("callback_query", (callbackQuery) => {
+    const chatId = callbackQuery.message.chat.id;
+    const action = callbackQuery.data;
+
+    // Далее можно добавить логику обработки выбранного действия
+    if (action === "edit_info") {
+      // Логика для изменения информации о себе
+      bot.sendMessage(chatId, "Вы выбрали изменение информации о себе.");
+    } else if (action === "change_password") {
+      // Логика для изменения пароля
+      bot.sendMessage(chatId, "Введите ваш старый пароль:");
+
+      bot.once("message", (msg) => {
+        let oldPassword = msg.text;
+        bot.sendMessage(chatId, "Введите ваш новый пароль:");
+
+        bot.once("message", (msg) => {
+          let newPassword = msg.text;
+          bot.sendMessage(chatId, "Повторите ваш новый пароль:");
+
+          bot.once("message", async (msg) => {
+            let repeatNewPassword = msg.text;
+
+            // Добавьте логику проверки и сохранения нового пароля
+            if (newPassword === repeatNewPassword) {
+              // Пароли совпадают, выполняйте необходимые действия
+              let res = await changePassword(
+                oldPassword,
+                newPassword,
+                authUsers,
+                chatId
+              );
+              if (res) bot.sendMessage(chatId, "Пароль успешно изменен.");
+              else bot.sendMessage(chatId, "Произошла ошибка");
+            } else {
+              bot.sendMessage(
+                chatId,
+                "Пароли не совпадают. Попробуйте еще раз."
+              );
+            }
+          });
+        });
+      });
+    }
+  });
 });
 
 //OPTIONS BUTTON
@@ -107,6 +185,12 @@ bot.onText(/Последние заказы/, async (msg) => {
       `заголовок: ${item.title} \n Создано: ${item.createdAt} \n Откликов: ${item.response} \n просмотров: ${item.views} \n категории: ${professions} \n ссылка: http://194.169.160.152:3000/orders/order/${item.id}`
     );
   });
+});
+
+bot.onText(/Фрилансеры/, async (msg) => {
+  const chatId = msg.chat.id;
+  const res = await getFreelancers();
+  console.log(res);
 });
 
 bot.setMyCommands(commandList);
