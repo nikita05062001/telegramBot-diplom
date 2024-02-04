@@ -3,6 +3,8 @@ import TelegramBot from "node-telegram-bot-api/src/telegram.js";
 import commandList from "./commandList.js";
 import options from "./options/optionsButton.js";
 import { checkAuth } from "./options/checkAuth.js";
+import formatDate from "./functions/formatDate.js";
+
 const token = "6257967035:AAHysxY65gmprn7FhtI2AJqgqqquz1D5rTo";
 //const webAppUrl = "https://bot-front-pink.vercel.app/"
 
@@ -172,25 +174,53 @@ bot.onText(/\/account/, (msg) => {
 });
 
 //OPTIONS BUTTON
-bot.onText(/Последние заказы/, async (msg) => {
+bot.onText(/Последние заказы📃/, async (msg) => {
   const chatId = msg.chat.id;
   const res = await getOrders();
-  res.forEach((item) => {
-    const professions = item.ProfessionToOrder.reduce(
-      (acc, prof) => acc + `${prof.Profession.name}, `,
-      ""
-    );
-    bot.sendMessage(
-      chatId,
-      `заголовок: ${item.title} \n Создано: ${item.createdAt} \n Откликов: ${item.response} \n просмотров: ${item.views} \n категории: ${professions} \n ссылка: http://194.169.160.152:3000/orders/order/${item.id}`
-    );
-  });
+  res
+    .reverse()
+    .slice(0, 10)
+    .forEach((item) => {
+      const professions = item.ProfessionToOrder.reduce(
+        (acc, prof) => acc + `${prof.Profession.name}, `,
+        ""
+      );
+      bot.sendMessage(
+        chatId,
+        `заголовок: ${item.title} \nСоздано: ${formatDate(
+          item.createdAt
+        )} \nОткликов: ${item.response} \nпросмотров: ${
+          item.views
+        } \nкатегории: ${
+          !professions == "undefined," ? professions : "категории не указаны"
+        } \nссылка: http://194.169.160.152:3000/orders/order/${item.id}`
+      );
+    });
 });
 
-bot.onText(/Фрилансеры/, async (msg) => {
+bot.onText(/Фрилансеры👨‍🏭/, async (msg) => {
   const chatId = msg.chat.id;
   const res = await getFreelancers();
-  console.log(res);
+  res
+    .reverse()
+    .slice(0, 10)
+    .forEach((item) => {
+      const professions = item.ProfessionToUser.reduce(
+        (acc, prof) => acc + `${prof.Profession.name}, `,
+        ""
+      );
+      console.log(professions || "ничего");
+      bot.sendMessage(
+        chatId,
+        `Имя и Фамилия: ${item.name} ${
+          item.surname
+        } \nзарегистрирован: ${formatDate(item.createdAt)} \nОписание: ${
+          item.smallDescription
+        } \nсредняя оценка: ${"5"} \nнавыки: ${
+          !professions == "undefined," ? professions : "навыки не указаны"
+        } \nссылка: http://194.169.160.152:3000/orders/order/${item.id}`
+      );
+    });
 });
 
 bot.setMyCommands(commandList);
