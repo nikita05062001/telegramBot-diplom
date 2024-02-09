@@ -1,4 +1,11 @@
-import { Login, changePassword, getFreelancers, getOrders } from "./api/api.js";
+import {
+  Login,
+  changePassword,
+  editMyProfile,
+  getFreelancers,
+  getMeProfile,
+  getOrders,
+} from "./api/api.js";
 import TelegramBot from "node-telegram-bot-api/src/telegram.js";
 import commandList from "./commandList.js";
 import options from "./options/optionsButton.js";
@@ -13,6 +20,7 @@ const bot = new TelegramBot(token, { polling: true });
 //database
 const firstEntryMap = new Map();
 const authUsers = {};
+const userInfo = {};
 
 let isProcessing = false;
 
@@ -38,6 +46,7 @@ bot.onText(/\/start/, (msg) => {
     options
   );
 });
+
 bot.onText(/\/authorization/, (msg) => {
   const chatId = msg.chat.id;
   if (isProcessing) return;
@@ -120,60 +129,130 @@ bot.onText(/\/account/, (msg) => {
         [
           { text: "Изменить информацию о себе", callback_data: "edit_info" },
           { text: "Изменить пароль", callback_data: "change_password" },
-          { text: "🔙 Назад", callback_data: "back" },
         ],
       ],
     },
   };
   bot.sendMessage(chatId, "Выберите действие:", options);
-  bot.on("callback_query", (callbackQuery) => {
-    const chatId = callbackQuery.message.chat.id;
-    const action = callbackQuery.data;
-
-    // Далее можно добавить логику обработки выбранного действия
-    if (action === "edit_info") {
-      // Логика для изменения информации о себе
-      bot.sendMessage(chatId, "Вы выбрали изменение информации о себе.");
-    } else if (action === "change_password") {
-      // Логика для изменения пароля
-      bot.sendMessage(chatId, "Введите ваш старый пароль:");
-
-      bot.once("message", (msg) => {
-        let oldPassword = msg.text;
-        bot.sendMessage(chatId, "Введите ваш новый пароль:");
-
-        bot.once("message", (msg) => {
-          let newPassword = msg.text;
-          bot.sendMessage(chatId, "Повторите ваш новый пароль:");
-
-          bot.once("message", async (msg) => {
-            let repeatNewPassword = msg.text;
-
-            // Добавьте логику проверки и сохранения нового пароля
-            if (newPassword === repeatNewPassword) {
-              // Пароли совпадают, выполняйте необходимые действия
-              let res = await changePassword(
-                oldPassword,
-                newPassword,
-                authUsers,
-                chatId
-              );
-              if (res) bot.sendMessage(chatId, "Пароль успешно изменен.");
-              else bot.sendMessage(chatId, "Произошла ошибка");
-            } else {
-              bot.sendMessage(
-                chatId,
-                "Пароли не совпадают. Попробуйте еще раз."
-              );
-            }
-          });
-        });
-      });
-    }
-  });
 });
 
-//OPTIONS BUTTON
+// ! Обработчик событий callback_query my_Accout
+bot.on("callback_query", async (callbackQuery) => {
+  const chatId = callbackQuery.message.chat.id;
+  const action = callbackQuery.data;
+
+  // Далее можно добавить логику обработки выбранного действия
+  if (action === "edit_info") {
+    // Логика для изменения информации о себе
+    const res = await getMeProfile(authUsers, chatId);
+    const options = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "Изменить имя", callback_data: "name_edit" },
+            { text: "Изменить фамилию", callback_data: "surname_edit" },
+            {
+              text: "изменить мини-описание",
+              callback_data: "description_edit",
+            },
+            { text: "изменить город", callback_data: "city_edit" },
+            { text: "изменить регион", callback_data: "region_edit" },
+            { text: "изменить телефон", callback_data: "phone_edit" },
+          ],
+        ],
+      },
+    };
+    Object.assign(userInfo, {
+      email: res?.email,
+      login: res?.login,
+      password: res?.password,
+      phone: res?.phone,
+      dateBorn: res?.dateBorn,
+      avatarPath: res?.avatarPath,
+      name: res?.name,
+      surname: res?.surname,
+      title: res?.title,
+      smallDescription: res?.smallDescription,
+      description: res?.description,
+      cv: res?.cv,
+      rating: res?.rating,
+      cityId: res?.cityId,
+      regionId: res?.regionId,
+    });
+    bot.sendMessage(
+      chatId,
+      `Имя: ${res.name} \nФамилия: ${res.surname} \nОписание: ${
+        res.description
+      } \nТелефон:${res.phone || " Не указано"} \nМини-Описание: ${
+        res.smallDescription
+      }`,
+      options
+    );
+  } else if (action === "change_password") {
+    // Логика для изменения пароля
+    bot.sendMessage(chatId, "Введите ваш старый пароль:");
+
+    bot.once("message", (msg) => {
+      let oldPassword = msg.text;
+      bot.sendMessage(chatId, "Введите ваш новый пароль:");
+
+      bot.once("message", (msg) => {
+        let newPassword = msg.text;
+        bot.sendMessage(chatId, "Повторите ваш новый пароль:");
+
+        bot.once("message", async (msg) => {
+          let repeatNewPassword = msg.text;
+
+          // Добавьте логику проверки и сохранения нового пароля
+          if (newPassword === repeatNewPassword) {
+            // Пароли совпадают, выполняйте необходимые действия
+            let res = await changePassword(
+              oldPassword,
+              newPassword,
+              authUsers,
+              chatId
+            );
+            if (res) bot.sendMessage(chatId, "Пароль успешно изменен.");
+            else bot.sendMessage(chatId, "Произошла ошибка");
+          } else {
+            bot.sendMessage(chatId, "Пароли не совпадают. Попробуйте еще раз.");
+          }
+        });
+      });
+    });
+  } else if (action === "name_edit") {
+    bot.sendMessage(chatId, "введите ваше новое имя");
+    bot.once("message", (msg) => {
+      let name = msg.text;
+      userInfo.name = name;
+      const res = editMyProfile(authUsers, chatId, userInfo);
+      if (res) {
+        bot.sendMessage(chatId, "Ваше имя успешно изменено");
+      } else {
+        bot.sendMessage(chatId, "произошла ошибка");
+      }
+    });
+  } else if (action === "surname_edit") {
+    bot.sendMessage(chatId, "введите вашу новую фамилию");
+    bot.once("message", (msg) => {
+      let surname = msg.text;
+      userInfo.surname = surname;
+      const res = editMyProfile(authUsers, chatId, userInfo);
+      if (res) {
+        bot.sendMessage(chatId, "Ваше фамилия успешно изменено");
+      } else {
+        bot.sendMessage(chatId, "произошла ошибка");
+      }
+    });
+  }
+});
+
+// ! Обработчик событий callback_query edit_Profile
+// bot.on("callback_query", async (callbackQuery) => {
+//   const chatId = callbackQuery.message.chat.id;
+//   const action = callbackQuery.data;
+// });
+// ! OPTIONS BUTTON
 bot.onText(/Последние заказы📃/, async (msg) => {
   const chatId = msg.chat.id;
   const res = await getOrders();

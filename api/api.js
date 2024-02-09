@@ -52,3 +52,33 @@ export const changePassword = async (
     return true;
   } else return false;
 };
+
+export const getMeProfile = async (user, chatid) => {
+  try {
+    const response = await $apiWithoutToken.get("/user/profile", {
+      headers: {
+        Authorization: `Bearer ${user[chatid]?.refresh}`,
+      },
+    });
+    if (response.status == 200) {
+      return response.data;
+    } else return false;
+  } catch (e) {
+    console.log(e);
+  }
+};
+
+export const editMyProfile = async (user, chatid, userInfo) => {
+  try {
+    const response = await $apiWithoutToken.put("/user/update", userInfo, {
+      headers: {
+        Authorization: `Bearer ${user[chatid]?.refresh}`,
+      },
+    });
+    if (response.status == 200) {
+      return true;
+    } else return false;
+  } catch (e) {
+    console.log(e);
+  }
+};
