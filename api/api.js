@@ -7,7 +7,10 @@ export const Login = async (email = "", password = "") => {
     const response = await $apiWithoutToken.post("/auth/login", {
       email,
       password,
-    });
+    }).catch((error) => {
+      console.log(error.status);
+      return error;
+    });;
     if (response.status == 200) {
       return response.data;
     } else return null;
@@ -15,16 +18,38 @@ export const Login = async (email = "", password = "") => {
     return null;
   }
 };
+export const refreshLogin = async (refreshToken = "") => {
+  try {
+    const response = await $apiWithoutToken.post("/auth/login/access-token", {
+     refreshToken
+    }).catch((error) => {
+      console.log(error.status);
+      return error;
+    });;
+    if (response.status == 200) {
+      return response.data;
+    } else return null;
+  } catch {
+    return null;
+  }
+}
+
 
 export const getOrders = async () => {
-  const response = await $apiWithoutToken.get("/order/get-all");
+  const response = await $apiWithoutToken.get("/order/get-all").catch((error) => {
+    console.log(error.status);
+    return error;
+  });;
   if (response.status == 200) {
     return response.data?.items;
   } else return null;
 };
 
 export const getFreelancers = async () => {
-  const response = await $apiWithoutToken.get("/user/freelancers");
+  const response = await $apiWithoutToken.get("/user/freelancers").catch((error) => {
+    console.log(error.status);
+    return error;
+  });;
   if (response.status == 200) {
     return response.data?.items;
   } else return null;
@@ -47,9 +72,12 @@ export const changePassword = async (
         Authorization: `Bearer ${user[chatid]?.access}`,
       },
     }
-  );
+  ) .catch((error) => {
+    console.log(error.status);
+    return error;
+  });
   if (response.status == 200) {
-    return true;
+    return response.data;
   } else return false;
 };
 
@@ -85,7 +113,10 @@ export const editMyProfile = async (user, chatid) => {
 
 export const getRegions = async () => {
   try {
-    const response = await $apiWithoutToken.get("/city/get-regions");
+    const response = await $apiWithoutToken.get("/city/get-regions").catch((error) => {
+      console.log(error.status);
+      return error;
+    });;
     if (response.status == 200) {
       return response.data;
     } else return false;
@@ -95,7 +126,10 @@ export const getRegions = async () => {
 };
 export const getCities = async (id) => {
   try {
-    const response = await $apiWithoutToken.get(`/city/get-cities/${id}`);
+    const response = await $apiWithoutToken.get(`/city/get-cities/${id}`).catch((error) => {
+      console.log(error.status);
+      return error;
+    });;
     if (response.status == 200) {
       return response.data;
     } else return false;
@@ -105,7 +139,10 @@ export const getCities = async (id) => {
 };
 export const getRegAndCity = async (id) => {
   try {
-    const response = await $apiWithoutToken.get(`/city/get-by-id/${id}`);
+    const response = await $apiWithoutToken.get(`/city/get-by-id/${id}`).catch((error) => {
+      console.log(error.status);
+      return error;
+    });;
     if (response.status == 200) {
       return response.data.name;
     } else return false;
@@ -113,3 +150,5 @@ export const getRegAndCity = async (id) => {
     console.log(e);
   }
 };
+
+

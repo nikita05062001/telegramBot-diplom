@@ -11,15 +11,21 @@ export const optionsEditProfile = {
       [
         { text: "Изменить имя", callback_data: "name_edit" },
         { text: "Изменить фамилию", callback_data: "surname_edit" },
+        
+      ],
+      [
+        { text: "изменить регион и город", callback_data: "region_edit" },
         {
           text: "изменить мини-описание",
           callback_data: "description_edit",
         },
       ],
       [
-        { text: "изменить регион и город", callback_data: "region_edit" },
-        { text: "изменить телефон", callback_data: "phone_edit" },
-      ],
+        {
+          text: "Назад",
+          callback_data: "back_edit",
+        },
+      ]
     ],
     resize_keyboard: true,
   },

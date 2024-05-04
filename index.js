@@ -8,6 +8,7 @@ import {
   getOrders,
   getRegAndCity,
   getRegions,
+  refreshLogin,
 } from "./api/api.js";
 import TelegramBot from "node-telegram-bot-api/src/telegram.js";
 import commandList from "./commandList.js";
@@ -18,6 +19,9 @@ import {
 } from "./options/optionsButton.js";
 import { checkAuth } from "./options/checkAuth.js";
 import formatDate from "./functions/formatDate.js";
+import checkAuthBan from "./options/checkAuthBan.js";
+
+
 
 const token = "6257967035:AAHysxY65gmprn7FhtI2AJqgqqquz1D5rTo";
 //const webAppUrl = "https://bot-front-pink.vercel.app/"
@@ -27,21 +31,9 @@ const bot = new TelegramBot(token, { polling: true });
 //database
 
 const authUsers = {};
-
+const accountMessageId = {}
 let isProcessing = false;
 
-// bot.onText(/.*/, (msg) => {
-//   const chatId = msg.chat.id;
-
-//   // Проверяем, является ли это первым входом пользователя
-//   if (!firstEntryMap.has(chatId)) {
-//     // Отправляем приветственное сообщение
-//     bot.sendMessage(chatId, "Привет! Добро пожаловать в бота.");
-
-//     // Помечаем, что пользователь уже вошел
-//     firstEntryMap.set(chatId, true);
-//   }
-// });
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
@@ -60,20 +52,22 @@ bot.onText(/\/authorization/, (msg) => {
     bot.sendMessage(chatId, "Вы уже авторизованы");
     return;
   }
-  if (authUsers[chatId]?.count == 0) {
-    bot.sendMessage(chatId, "Повторите попытку позже, вы заблокированы");
-    return;
+  const ban = checkAuthBan(authUsers, chatId);
+  if ( ban != 'access') {
+    bot.sendMessage(chatId, ban);
+    return
   }
   isProcessing = true;
   bot.sendMessage(chatId, "Введите ваш email:");
 
   bot.once("message", (msg) => {
     const email = msg.text;
-
+    bot.deleteMessage(chatId, msg.message_id)
     bot.sendMessage(chatId, "Введите ваш пароль:");
 
     bot.once("message", async (msg) => {
       const password = msg.text;
+      bot.deleteMessage(chatId, msg.message_id)
       const res = await Login(email, password);
 
       if (res) {
@@ -81,13 +75,14 @@ bot.onText(/\/authorization/, (msg) => {
         authUsers[chatId] = {
           access: res.accessToken,
           refresh: res.refreshToken,
+          refreshTimer: Date.now() + 5 * 60 * 1000,
         };
         isProcessing = false;
         console.log(authUsers);
       } else {
         if (!authUsers[chatId]?.count) {
           authUsers[chatId] = {
-            count: 4,
+            count: 2,
           };
           bot.sendMessage(
             chatId,
@@ -96,12 +91,18 @@ bot.onText(/\/authorization/, (msg) => {
           isProcessing = false;
         } else {
           authUsers[chatId].count--;
+          if(authUsers[chatId].count!=0)
           bot.sendMessage(
             chatId,
             `Ошибка, введены неверные данные, у вас осталось ${authUsers[chatId].count}`
           );
           if (authUsers[chatId].count == 0)
-            bot.sendMessage(chatId, `авторизация временно заблокировано`);
+          {
+            bot.sendMessage(chatId, `авторизация заблокирована на 24 часа`);
+            authUsers[chatId].ban = Date.now();
+         
+          }
+          
           isProcessing = false;
         }
       }
@@ -124,27 +125,37 @@ bot.onText(/\/account/, (msg) => {
   if (!checkAuth(authUsers, chatId)) {
     bot.sendMessage(
       chatId,
-      "для начала авторизуйтесь, введите команду /authorization"
+      "Для начала авторизуйтесь, введите команду /authorization"
     );
     return;
   }
-  bot.sendMessage(chatId, "Выберите действие:", optionsPickMenuProfile);
+  bot.sendMessage(chatId, "Выберите действие:", optionsPickMenuProfile)
+    .then((sentMessage) => {
+      // Сохраняем message_id отправленного сообщения в объекте accountMessageId
+      accountMessageId[chatId] = sentMessage.message_id;
+      
+    })
+    .catch((error) => {
+      console.error("Ошибка при отправке сообщения:", error);
+    });
 });
 
 // ! Обработчик событий callback_query my_Accout
 bot.on("callback_query", async (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const action = callbackQuery.data;
-
+  const messageId = callbackQuery.message.message_id;
   // Далее можно добавить логику обработки выбранного действия
   if (action === "edit_info") {
     // Логика для изменения информации о себе
     const res = await getMeProfile(authUsers, chatId);
     let access = authUsers[chatId]?.access;
     let refresh = authUsers[chatId]?.refresh;
+    let refreshTimer = authUsers[chatId]?.refreshTimer;
     authUsers[chatId] = {
       access,
       refresh,
+      refreshTimer,
       userInfo: {
         email: res?.email || "",
         login: res?.login || "",
@@ -174,24 +185,26 @@ bot.on("callback_query", async (callbackQuery) => {
       } \nРегион: ${nameRegion} \nГород: ${nameCity}`,
       optionsEditProfile
     );
+    bot.deleteMessage(chatId, accountMessageId[chatId]);
     //! смена пароля
   } else if (action === "change_password") {
     // Логика для изменения пароля
     if (isProcessing) return;
     isProcessing = true;
     bot.sendMessage(chatId, "Введите ваш старый пароль:");
-
     bot.once("message", (msg) => {
       let oldPassword = msg.text;
+      bot.deleteMessage(chatId, msg.message_id)
       bot.sendMessage(chatId, "Введите ваш новый пароль:");
 
       bot.once("message", (msg) => {
         let newPassword = msg.text;
+        bot.deleteMessage(chatId, msg.message_id)
         bot.sendMessage(chatId, "Повторите ваш новый пароль:");
 
         bot.once("message", async (msg) => {
           let repeatNewPassword = msg.text;
-
+          bot.deleteMessage(chatId, msg.message_id)
           // Добавьте логику проверки и сохранения нового пароля
           if (newPassword === repeatNewPassword) {
             // Пароли совпадают, выполняйте необходимые действия
@@ -201,6 +214,7 @@ bot.on("callback_query", async (callbackQuery) => {
               authUsers,
               chatId
             );
+            console.log(res)
             if (res) bot.sendMessage(chatId, "Пароль успешно изменен.");
             else bot.sendMessage(chatId, "Произошла ошибка");
           } else {
@@ -296,7 +310,43 @@ bot.on("callback_query", async (callbackQuery) => {
       bot.sendMessage(chatId, "произошла ошибка");
     }
   }
+  //! смена миниописания
+  else if (action.includes("description_edit")) {
+    bot.sendMessage(chatId, "введите ваше новое описание");
+    bot.once("message", (msg) => {
+      let smallDescription = msg.text;
+      authUsers[chatId].userInfo.smallDescription = smallDescription;
+      const res = editMyProfile(authUsers, chatId);
+      if (res) {
+        bot.sendMessage(chatId, "Ваше мини-описание успешно изменено");
+      } else {
+        bot.sendMessage(chatId, "произошла ошибка");
+      }})
+  }
+  //! назад в меню выбора
+  else if (action.includes("back_edit")) {
+
+  if (isProcessing) return;
+  if (!checkAuth(authUsers, chatId)) {
+    bot.sendMessage(
+      chatId,
+      "для начала авторизуйтесь, введите команду /authorization"
+    );
+    return;
+  }
+  bot.deleteMessage(chatId, messageId);
+  bot.sendMessage(chatId, "Выберите действие:", optionsPickMenuProfile).then((sentMessage) => {
+    // Сохраняем message_id отправленного сообщения в объекте accountMessageId
+    accountMessageId[chatId] = sentMessage.message_id;
+   
+  })
+  .catch((error) => {
+    console.error("Ошибка при отправке сообщения:", error);
+  });;
+  }
 });
+
+
 
 // ! OPTIONS BUTTON
 bot.onText(/Последние заказы📃/, async (msg) => {
@@ -318,7 +368,7 @@ bot.onText(/Последние заказы📃/, async (msg) => {
           item.views
         } \nкатегории: ${
           !professions == "undefined," ? professions : "категории не указаны"
-        } \nссылка: http://194.169.160.152:3000/orders/order/${item.id}`
+        } \nссылка: http://194.169.160.152/orders/order/${item.id}`
       );
     });
 });
@@ -343,9 +393,28 @@ bot.onText(/Фрилансеры👨‍🏭/, async (msg) => {
           item.smallDescription
         } \nсредняя оценка: ${"5"} \nнавыки: ${
           !professions == "undefined," ? professions : "навыки не указаны"
-        } \nссылка: http://194.169.160.152:3000/orders/order/${item.id}`
+        } \nссылка: http://194.169.160.152/freelancers/freelancer/${item.id}`
       );
     });
 });
+
+
+//! Обновление токена
+setInterval(async () => {
+  for (const userId in authUsers) {
+    if (authUsers.hasOwnProperty(userId)) {
+        const user = authUsers[userId];
+        // if (user.refreshTimer && Date.now() >= user.refreshTimer) {
+            // Если время таймера истекло, вызываем вашу функцию
+         const refresh = await refreshLogin(user.refresh);
+            // Устанавливаем новый таймер для пользователя (например, еще через 5 минут)
+            authUsers[userId].access = refresh.accessToken;
+            authUsers[userId].refresh = refresh.refreshToken;
+            authUsers[userId].refreshTimer = Date.now() + 5 * 60 * 1000; // 5 минут * 60 секунд * 1000 миллисекунд
+      // }
+    }
+}
+console.log(authUsers)
+}, 50000)
 
 bot.setMyCommands(commandList);
