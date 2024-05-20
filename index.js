@@ -1,6 +1,9 @@
 import {
   Login,
+  changeChatID,
   changePassword,
+  createOrder,
+  // createUser,
   editMyProfile,
   getCities,
   getFreelancers,
@@ -36,6 +39,7 @@ let isProcessing = false;
 
 
 bot.onText(/\/start/, (msg) => {
+
   const chatId = msg.chat.id;
   if (isProcessing) return;
   bot.sendMessage(
@@ -59,7 +63,6 @@ bot.onText(/\/authorization/, (msg) => {
   }
   isProcessing = true;
   bot.sendMessage(chatId, "Введите ваш email:");
-
   bot.once("message", (msg) => {
     const email = msg.text;
     bot.deleteMessage(chatId, msg.message_id)
@@ -352,14 +355,16 @@ bot.on("callback_query", async (callbackQuery) => {
 bot.onText(/Последние заказы📃/, async (msg) => {
   const chatId = msg.chat.id;
   const res = await getOrders();
+  console.log(res)
   res
     .reverse()
     .slice(0, 10)
     .forEach((item) => {
-      const professions = item.ProfessionToOrder.reduce(
-        (acc, prof) => acc + `${prof.Profession.name}, `,
-        ""
-      );
+      const professions = 'невыбрано'
+      // const professions = item.ProfessionToOrder.reduce(
+      //   (acc, prof) => acc + `${prof.Profession.name}, `,
+      //   ""
+      // );
       bot.sendMessage(
         chatId,
         `заголовок: ${item.title} \nСоздано: ${formatDate(
@@ -376,14 +381,16 @@ bot.onText(/Последние заказы📃/, async (msg) => {
 bot.onText(/Фрилансеры👨‍🏭/, async (msg) => {
   const chatId = msg.chat.id;
   const res = await getFreelancers();
+  console.log(res)
   res
     .reverse()
     .slice(0, 10)
     .forEach((item) => {
-      const professions = item.ProfessionToUser.reduce(
-        (acc, prof) => acc + `${prof.Profession.name}, `,
-        ""
-      );
+      // const professions = item.ProfessionToUser.reduce(
+      //   (acc, prof) => acc + `${prof.Profession.name}, `,
+      //   ""
+      // );
+      const professions = 'невыбрано'
       console.log(professions || "ничего");
       bot.sendMessage(
         chatId,
@@ -398,6 +405,48 @@ bot.onText(/Фрилансеры👨‍🏭/, async (msg) => {
     });
 });
 
+bot.onText(/Подписаться на оповещения о новых заказах🚩/, async (msg) => {
+  const chatId = msg.chat.id;
+  if (!checkAuth(authUsers, chatId)) {
+    bot.sendMessage(
+      chatId,
+      "Для начала авторизуйтесь, введите команду /authorization"
+    );
+    return;
+  }
+  const res = await changeChatID(authUsers, chatId);
+  if(res)
+  bot.sendMessage(chatId, "Вы подписались на оповещения о новых заказах");
+});
+
+bot.onText(/Создать заказ⚡/, async (msg) => {
+  const chatId = msg.chat.id;
+  if (!checkAuth(authUsers, chatId)) {
+    bot.sendMessage(
+      chatId,
+      "Для начала авторизуйтесь, введите команду /authorization"
+    );
+    return;
+  }
+  bot.sendMessage(chatId, "Введите ваш заголовок");
+  bot.once("message", (msg) => {
+    const title = msg.text;
+    bot.sendMessage(chatId, "Введите ваше описание:");
+    bot.once("message", (msg) => {
+      const description = msg.text;
+      bot.sendMessage(chatId, "Введите вашу цену");
+      bot.once("message", async (msg) => {
+        const price = msg.text;
+       const res = await createOrder(title,description,price, authUsers, chatId)
+       console.log(res)
+       if(res)
+        bot.sendMessage(chatId, "Заказ создан");
+      else bot.sendMessage(chatId, "произошла ошибка");
+      })
+    })
+  }
+  )
+});
 
 //! Обновление токена
 setInterval(async () => {
@@ -406,11 +455,14 @@ setInterval(async () => {
         const user = authUsers[userId];
         // if (user.refreshTimer && Date.now() >= user.refreshTimer) {
             // Если время таймера истекло, вызываем вашу функцию
-         const refresh = await refreshLogin(user.refresh);
+              const refresh = user.refresh ? await refreshLogin(user.refresh) : '';
+
             // Устанавливаем новый таймер для пользователя (например, еще через 5 минут)
-            authUsers[userId].access = refresh.accessToken;
-            authUsers[userId].refresh = refresh.refreshToken;
-            authUsers[userId].refreshTimer = Date.now() + 5 * 60 * 1000; // 5 минут * 60 секунд * 1000 миллисекунд
+            if (refresh?.accessToken && refresh?.refreshToken) {
+              authUsers[userId].access = refresh.accessToken;
+              authUsers[userId].refresh = refresh.refreshToken;
+              authUsers[userId].refreshTimer = Date.now() + 5 * 60 * 1000; // 5 минут * 60 секунд * 1000 миллисекунд
+            }
       // }
     }
 }

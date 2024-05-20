@@ -41,7 +41,7 @@ export const getOrders = async () => {
     return error;
   });;
   if (response.status == 200) {
-    return response.data?.items;
+    return response.data;
   } else return null;
 };
 
@@ -51,12 +51,12 @@ export const getFreelancers = async () => {
     return error;
   });;
   if (response.status == 200) {
-    return response.data?.items;
+    return response.data;
   } else return null;
 };
 
 export const changePassword = async (
-  oldPassword,
+  password,
   newPassword,
   user,
   chatid
@@ -64,7 +64,7 @@ export const changePassword = async (
   const response = await $apiWithoutToken.put(
     "/user/change-password",
     {
-      oldPassword,
+      password,
       newPassword,
     },
     {
@@ -77,6 +77,30 @@ export const changePassword = async (
     return error;
   });
   if (response.status == 200) {
+    return response.data;
+  } else return false;
+};
+
+export const changeChatID = async (
+  user,
+  telegramChatID,
+) => {
+  const response = await $apiWithoutToken.put(
+    "/user/change-chat",
+    {
+      telegramChatID : String(telegramChatID)
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${user[telegramChatID]?.access}`,
+      },
+    }
+  ) .catch((error) => {
+    console.log(error.status);
+    return error;
+  });
+  if (response.status == 200) {
+    
     return response.data;
   } else return false;
 };
@@ -151,4 +175,44 @@ export const getRegAndCity = async (id) => {
   }
 };
 
+// export const createUser = async () => {
+//   try {
+//     console.log('прошло')
+//     const response = await $apiWithoutToken.post("/register", {
+//       email: "admin@mail.ru",
+//       password: "12345678",
+//       login: "admin",
+//       roleId: 2,
+//     }).catch((error) => {
+//       console.log(error.status);
+//       return error;
+//     });;
+//     if (response.status == 200) {
+     
+//       return response.data;
+//     } else return null;
+  
+//   } catch {
+//     return null;
+//   }
+// }
+
+export const createOrder = async (title, description, price, user, chatid) => {
+  const response = await $apiWithoutToken
+    .post("/order/create", {
+      title,
+      description,
+      price,
+    }, {
+      headers: {
+        Authorization: `Bearer ${user[chatid]?.access}`,
+      },
+    })
+    .then((res) => true)
+    .catch((error) => {
+      console.log(error.status);
+      return false;
+    });
+  return response;
+};
 
