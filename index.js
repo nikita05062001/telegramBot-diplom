@@ -89,7 +89,7 @@ bot.onText(/\/authorization/, (msg) => {
           };
           bot.sendMessage(
             chatId,
-            `Ошибка, введены неверные данные, у вас осталось ${authUsers[chatId].count}`
+            `Ошибка, введены неверные данные, доступное кол-во попыток: ${authUsers[chatId].count}`
           );
           isProcessing = false;
         } else {
@@ -405,7 +405,7 @@ bot.onText(/Фрилансеры👨‍🏭/, async (msg) => {
     });
 });
 
-bot.onText(/Подписаться на оповещения о новых заказах🚩/, async (msg) => {
+bot.onText(/Подписаться-Отписаться на оповещения🚩/, async (msg) => {
   const chatId = msg.chat.id;
   if (!checkAuth(authUsers, chatId)) {
     bot.sendMessage(
@@ -415,8 +415,10 @@ bot.onText(/Подписаться на оповещения о новых за�
     return;
   }
   const res = await changeChatID(authUsers, chatId);
-  if(res)
-  bot.sendMessage(chatId, "Вы подписались на оповещения о новых заказах");
+  if(res.telegramChatID)
+  bot.sendMessage(chatId, "Вы подписались на оповещения");
+  else
+  bot.sendMessage(chatId, "Вы отписались от оповещений");
 });
 
 bot.onText(/Создать заказ⚡/, async (msg) => {
